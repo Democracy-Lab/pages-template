@@ -18,41 +18,75 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Checkout the repo
-      - uses: actions/checkout@v4
+      - name: Checkout this repo
+        uses: actions/checkout@v4
 
-      # Step 2: Install pandoc for markdown → HTML conversion
-      - name: Install pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc jq
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc jq
 
-      # Step 3: Convert README.md to HTML
-      - name: Convert README to HTML
+      - name: Build docs/index.html from README
+        env:
+          REPO_HTML_TITLE: ${{ github.repository }}
         run: |
           mkdir -p docs
-          pandoc README.md -f markdown -t html -s -o docs/index.html
+          if [ -f README.md ]; then
+            pandoc README.md -f markdown -t html -s -o docs/index.html --metadata title="$REPO_HTML_TITLE"
+          else
+            cat > docs/index.html <<'HTML'
+            <!doctype html><meta charset="utf-8">
+            <title>Site</title><h1>Site</h1>
+            <p>No README.md found. Add one and push to regenerate this page.</p>
+            HTML
+          fi
 
-      # Step 4: Append citation section
-      - name: Append citation with contributors
+      - name: Append citation (Steph first, then contributors)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
         run: |
-          CONTRIBUTORS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            https://api.github.com/repos/${GITHUB_REPOSITORY}/contributors \
-            | jq -r '.[].login')
+          # Get contributor logins (exclude bots/ghost), up to 100
+          logins=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$REPO/contributors?per_page=100&anon=false" \
+            | jq -r '.[] | select((.type // "") != "Bot") | select(.login != "ghost") | .login' | sort -fu)
 
-          {
-            echo "<hr><h2>Citation</h2>"
-            echo "<p>Steph Buongiorno"
-            for USER in $CONTRIBUTORS; do
-              if [ "$USER" != "stephbuon" ]; then
-                echo ", $USER"
-              fi
-            done
-            echo "</p>"
-          } >> docs/index.html
+          # Turn logins into display names; fall back to login if name empty
+          names=""
+          for u in $logins; do
+            name=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/users/$u" | jq -r '.name // empty')
+            [ -z "$name" ] && name="$u"
+            # Skip Steph if her display name/login would duplicate the forced-first author
+            if [ "$name" != "Steph Buongiorno" ] && [ "$u" != "stephbuon" ]; then
+              names="$names\n$name"
+            fi
+          done
 
-      # Step 5: Upload site for GitHub Pages
-      - uses: actions/upload-pages-artifact@v3
+          # Sort remaining names alphabetically, unique
+          names_sorted=$(printf "%b" "$names" | awk 'NF' | sort -fu)
+
+          # Build citation line
+          citation="Steph Buongiorno"
+          if [ -n "$names_sorted" ]; then
+            citation="$citation; $(echo "$names_sorted" | paste -sd ', ' -)"
+          fi
+
+          # Add repo link + date
+          today=$(date -u +%Y-%m-%d)
+          repo_url="https://github.com/$REPO"
+
+          cat >> docs/index.html <<HTML
+
+<hr>
+<h2>Citation</h2>
+<p>$citation.</p>
+<p><strong>Repository:</strong> <a href="$repo_url">$repo_url</a><br>
+<strong>Date:</strong> $today</p>
+HTML
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
         with:
           path: docs
 
@@ -63,5 +97,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/deploy-pages@v4
-        id: deployment
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
