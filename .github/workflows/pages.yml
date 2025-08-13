@@ -36,11 +36,11 @@ jobs:
           if [ -f README.md ]; then
             pandoc README.md -f markdown -t html -s -o docs/index.html --metadata title="$REPO_HTML_TITLE"
           else
-            cat > docs/index.html <<'HTML'
-            <!doctype html><meta charset="utf-8">
-            <title>Site</title><h1>Site</h1>
-            <p>No README.md found. Add one and push to regenerate this page.</p>
-            HTML
+cat > docs/index.html <<'HTML'
+<!doctype html><meta charset="utf-8">
+<title>Site</title><h1>Site</h1>
+<p>No README.md found. Add one and push to regenerate this page.</p>
+HTML
           fi
           # Inject Arial font
           sed -i 's|</head>|<style>body{font-family:Arial, Helvetica, sans-serif;} h1,h2,h3,h4,h5,h6{font-family:Arial, Helvetica, sans-serif;}</style></head>|' docs/index.html
@@ -58,12 +58,12 @@ jobs:
           LAST_UPDATE=$(git log -1 --format=%cI || date -u +%Y-%m-%dT%H:%M:%SZ)
           YEAR=$(date -u -d "$LAST_UPDATE" +%Y 2>/dev/null || date -u +%Y)
 
-          # Get contributor logins (exclude bots/ghost), up to 100
+          # Get contributor logins
           logins=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/$REPO/contributors?per_page=100&anon=false" \
             | jq -r '.[] | select((.type // "") != "Bot") | select(.login != "ghost") | .login' | sort -fu)
 
-          # Map to display names (fallback to login), skip Steph for first position
+          # Map to display names
           names=""
           for u in $logins; do
             name=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/users/$u" | jq -r '.name // empty')
@@ -91,7 +91,7 @@ jobs:
 }"
 
           # Append both to index.html
-          cat >> docs/index.html <<HTML
+cat >> docs/index.html <<HTML
 
 <hr>
 <h2>Suggested Citation</h2>
@@ -120,4 +120,5 @@ HTML
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
 
