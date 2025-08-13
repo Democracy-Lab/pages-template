@@ -89,12 +89,12 @@ jobs:
 
           # Build BibTeX as a shell variable (YAML-safe)
           bibtex="@misc{$REPO_NAME-$YEAR,
-  author = {$authors_bibtex},
-  title = {$REPO_NAME},
-  year = {$YEAR},
-  howpublished = {\\url{$REPO_URL}},
-  note = {Last updated: $LAST_UPDATE}
-}"
+          author = {$authors_bibtex},
+          title = {$REPO_NAME},
+          year = {$YEAR},
+          howpublished = {\\url{$REPO_URL}},
+          note = {Last updated: $LAST_UPDATE}
+          }"
 
           # Append both to index.html
           printf '%s\n' \
