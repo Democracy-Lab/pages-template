@@ -28,24 +28,55 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pandoc jq
 
-      - name: Build docs/index.html from README (Arial font)
+      # Prefer an existing docs/index.html; only generate from README if missing.
+      - id: build_page
+        name: Build docs/index.html (prefer existing; fallback to README)
         env:
           REPO_HTML_TITLE: ${{ github.repository }}
         run: |
+          set -e
           mkdir -p docs
-          if [ -f README.md ]; then
-            pandoc README.md -f markdown -t html -s -o docs/index.html --metadata title="$REPO_HTML_TITLE"
-          else
-            printf '%s\n' \
-              '<!doctype html><meta charset="utf-8">' \
-              '<title>Site</title><h1>Site</h1>' \
-              '<p>No README.md found. Add one and push to regenerate this page.</p>' \
-              > docs/index.html
-          fi
-          # Inject Arial font
-          sed -i 's|</head>|<style>body{font-family:Arial, Helvetica, sans-serif;} h1,h2,h3,h4,h5,h6{font-family:Arial, Helvetica, sans-serif;}</style></head>|' docs/index.html
+          GENERATED=0
 
+          if [ -f docs/index.html ]; then
+            echo "Keeping existing docs/index.html (not regenerating)."
+          elif [ -f README.md ]; then
+            echo "Generating docs/index.html from README.md..."
+            pandoc README.md -f markdown -t html -s -o docs/index.html --metadata title="$REPO_HTML_TITLE"
+            GENERATED=1
+          else
+            echo "No docs/index.html or README.md found; writing minimal page."
+            printf '%s\n' \
+              '<!doctype html><html><head><meta charset="utf-8"><title>Site</title></head><body>' \
+              '<h1>Site</h1>' \
+              '<p>No README.md found. Add one and push to regenerate this page.</p>' \
+              '</body></html>' \
+              > docs/index.html
+            GENERATED=1
+          fi
+
+          # Ensure Arial font is applied, even on a custom index.html
+          if grep -qi '</head>' docs/index.html; then
+            sed -i 's|</head>|<style>body{font-family:Arial, Helvetica, sans-serif;} h1,h2,h3,h4,h5,h6{font-family:Arial, Helvetica, sans-serif;}</style></head>|' docs/index.html
+          else
+            # Wrap bare content with a head + Arial
+            TMP=$(mktemp)
+            printf '%s\n' \
+              '<!doctype html><html><head><meta charset="utf-8">' \
+              '<style>body{font-family:Arial, Helvetica, sans-serif;} h1,h2,h3,h4,h5,h6{font-family:Arial, Helvetica, sans-serif;}</style>' \
+              '</head><body>' \
+              > "$TMP"
+            cat docs/index.html >> "$TMP"
+            printf '%s\n' '</body></html>' >> "$TMP"
+            mv "$TMP" docs/index.html
+          fi
+
+          # Expose whether we generated from README/minimal (1) or kept existing (0)
+          echo "generated=$GENERATED" >> "$GITHUB_OUTPUT"
+
+      # Append citation ONLY when we generated the page from README/minimal
       - name: Append suggested citation (written + BibTeX) + repo metadata
+        if: steps.build_page.outputs.generated == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -58,7 +89,7 @@ jobs:
           LAST_UPDATE=$(git log -1 --format=%cI || date -u +%Y-%m-%dT%H:%M:%SZ)
           YEAR=$(date -u -d "$LAST_UPDATE" +%Y 2>/dev/null || date -u +%Y)
 
-          # Get contributor logins (exclude bots/ghost)
+          # Collect contributor logins (exclude bots/ghost)
           logins=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/$REPO/contributors?per_page=100&anon=false" \
             | jq -r '.[] | select((.type // "") != "Bot") | select(.login != "ghost") | .login' | sort -fu)
@@ -87,7 +118,7 @@ jobs:
             authors_bibtex="$authors_bibtex and $(echo "$names_sorted" | paste -sd ' and ' -)"
           fi
 
-          # Build BibTeX as a shell variable (YAML-safe)
+          # BibTeX entry as a shell variable (YAML-safe)
           bibtex="@misc{$REPO_NAME-$YEAR,
           author = {$authors_bibtex},
           title = {$REPO_NAME},
@@ -128,6 +159,7 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
 
 
 
