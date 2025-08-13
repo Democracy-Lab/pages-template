@@ -29,7 +29,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pandoc jq
 
-      - name: Build docs/index.html from README
+      - name: Build docs/index.html from README (Arial font)
         env:
           REPO_HTML_TITLE: ${{ github.repository }}
         run: |
@@ -43,6 +43,8 @@ jobs:
             <p>No README.md found. Add one and push to regenerate this page.</p>
             HTML
           fi
+          # Inject Arial font across the page
+          sed -i 's|</head>|<style>body{font-family:Arial, Helvetica, sans-serif;} h1,h2,h3,h4,h5,h6{font-family:Arial, Helvetica, sans-serif;}</style></head>|' docs/index.html
 
       - name: Append citation (Steph first, then contributors) + repo metadata
         env:
