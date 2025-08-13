@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v4
+        with:
+          # ensure latest commit metadata is available for "last updated" date
+          fetch-depth: 1
 
       - name: Install tools
         run: |
@@ -41,29 +44,35 @@ jobs:
             HTML
           fi
 
-      - name: Append citation (Steph first, then contributors)
+      - name: Append citation (Steph first, then contributors) + repo metadata
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
+          REPO: ${{ github.repository }}            # e.g., Democracy-Lab/my-repo
           OWNER: ${{ github.repository_owner }}
         run: |
+          set -e
+
+          # Repo metadata
+          REPO_NAME="${REPO#*/}"
+          REPO_URL="https://github.com/$REPO"
+          LAST_UPDATE=$(git log -1 --format=%cI || date -u +%Y-%m-%dT%H:%M:%SZ)
+
           # Get contributor logins (exclude bots/ghost), up to 100
           logins=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/$REPO/contributors?per_page=100&anon=false" \
             | jq -r '.[] | select((.type // "") != "Bot") | select(.login != "ghost") | .login' | sort -fu)
 
-          # Turn logins into display names; fall back to login if name empty
+          # Map to display names (fallback to login), skip Steph to keep her first
           names=""
           for u in $logins; do
             name=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/users/$u" | jq -r '.name // empty')
             [ -z "$name" ] && name="$u"
-            # Skip Steph if her display name/login would duplicate the forced-first author
             if [ "$name" != "Steph Buongiorno" ] && [ "$u" != "stephbuon" ]; then
               names="$names\n$name"
             fi
           done
 
-          # Sort remaining names alphabetically, unique
+          # Alphabetize & dedupe remaining names
           names_sorted=$(printf "%b" "$names" | awk 'NF' | sort -fu)
 
           # Build citation line
@@ -72,17 +81,17 @@ jobs:
             citation="$citation; $(echo "$names_sorted" | paste -sd ', ' -)"
           fi
 
-          # Add repo link + date
-          today=$(date -u +%Y-%m-%d)
-          repo_url="https://github.com/$REPO"
-
+          # Append to page
           cat >> docs/index.html <<HTML
 
 <hr>
 <h2>Citation</h2>
 <p>$citation.</p>
-<p><strong>Repository:</strong> <a href="$repo_url">$repo_url</a><br>
-<strong>Date:</strong> $today</p>
+
+<h3>Repository</h3>
+<p><em>$REPO_NAME</em><br>
+<a href="$REPO_URL">$REPO_URL</a><br>
+<strong>Last updated:</strong> $LAST_UPDATE</p>
 HTML
 
       - name: Upload site artifact
