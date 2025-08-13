@@ -18,11 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # If you build a static site (Jekyll, MkDocs, etc.), do it here, and
-      # set the output folder in the next step's "path".
+      # Upload the docs folder as the site content
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .  # or 'site'/'build' if you build
+          path: docs
 
   deploy:
     needs: build
@@ -33,3 +32,4 @@ jobs:
     steps:
       - uses: actions/deploy-pages@v4
         id: deployment
+
