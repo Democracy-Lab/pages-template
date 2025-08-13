@@ -18,17 +18,40 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Checkout this repo
+      # Step 1: Checkout the repo
       - uses: actions/checkout@v4
 
-      # Step 2: Clone the template repo to get the docs folder
-      - name: Clone Pages template
-        run: |
-          git clone --depth 1 https://github.com/Democracy-Lab/pages-template.git temp-template
-          mkdir -p docs
-          cp -r temp-template/docs/* docs/
+      # Step 2: Install pandoc for markdown → HTML conversion
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc jq
 
-      # Step 3: Upload the docs folder for deployment
+      # Step 3: Convert README.md to HTML
+      - name: Convert README to HTML
+        run: |
+          mkdir -p docs
+          pandoc README.md -f markdown -t html -s -o docs/index.html
+
+      # Step 4: Append citation section
+      - name: Append citation with contributors
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CONTRIBUTORS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            https://api.github.com/repos/${GITHUB_REPOSITORY}/contributors \
+            | jq -r '.[].login')
+
+          {
+            echo "<hr><h2>Citation</h2>"
+            echo "<p>Steph Buongiorno"
+            for USER in $CONTRIBUTORS; do
+              if [ "$USER" != "stephbuon" ]; then
+                echo ", $USER"
+              fi
+            done
+            echo "</p>"
+          } >> docs/index.html
+
+      # Step 5: Upload site for GitHub Pages
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
