@@ -36,11 +36,11 @@ jobs:
           if [ -f README.md ]; then
             pandoc README.md -f markdown -t html -s -o docs/index.html --metadata title="$REPO_HTML_TITLE"
           else
-cat > docs/index.html <<'HTML'
-<!doctype html><meta charset="utf-8">
-<title>Site</title><h1>Site</h1>
-<p>No README.md found. Add one and push to regenerate this page.</p>
-HTML
+            printf '%s\n' \
+              '<!doctype html><meta charset="utf-8">' \
+              '<title>Site</title><h1>Site</h1>' \
+              '<p>No README.md found. Add one and push to regenerate this page.</p>' \
+              > docs/index.html
           fi
           # Inject Arial font
           sed -i 's|</head>|<style>body{font-family:Arial, Helvetica, sans-serif;} h1,h2,h3,h4,h5,h6{font-family:Arial, Helvetica, sans-serif;}</style></head>|' docs/index.html
@@ -58,12 +58,12 @@ HTML
           LAST_UPDATE=$(git log -1 --format=%cI || date -u +%Y-%m-%dT%H:%M:%SZ)
           YEAR=$(date -u -d "$LAST_UPDATE" +%Y 2>/dev/null || date -u +%Y)
 
-          # Get contributor logins
+          # Get contributor logins (exclude bots/ghost)
           logins=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/$REPO/contributors?per_page=100&anon=false" \
             | jq -r '.[] | select((.type // "") != "Bot") | select(.login != "ghost") | .login' | sort -fu)
 
-          # Map to display names
+          # Map to display names (fallback to login), skip Steph to keep her first
           names=""
           for u in $logins; do
             name=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/users/$u" | jq -r '.name // empty')
@@ -74,37 +74,45 @@ HTML
           done
           names_sorted=$(printf "%b" "$names" | awk 'NF' | sort -fu)
 
-          # Written-out citation
-          citation="Steph Buongiorno"
+          # Suggested (written) citation
+          citation_written="Steph Buongiorno"
           if [ -n "$names_sorted" ]; then
-            citation="$citation; $(echo "$names_sorted" | paste -sd ', ' -)"
+            citation_written="$citation_written; $(echo "$names_sorted" | paste -sd ', ' -)"
           fi
-          citation="$citation. $REPO_NAME. $YEAR. Available at: $REPO_URL"
+          citation_written="$citation_written. $REPO_NAME. $YEAR. Available at: $REPO_URL"
 
-          # BibTeX citation
+          # Proper BibTeX authors: "A and B and C"
+          authors_bibtex="Steph Buongiorno"
+          if [ -n "$names_sorted" ]; then
+            authors_bibtex="$authors_bibtex and $(echo "$names_sorted" | paste -sd ' and ' -)"
+          fi
+
+          # BibTeX entry (keep newlines inside the variable)
           bibtex="@misc{$REPO_NAME-$YEAR,
-  author = {$citation},
+  author = {$authors_bibtex},
   title = {$REPO_NAME},
   year = {$YEAR},
   howpublished = {\\url{$REPO_URL}},
   note = {Last updated: $LAST_UPDATE}
 }"
 
-          # Append both to index.html
-cat >> docs/index.html <<HTML
-
-<hr>
-<h2>Suggested Citation</h2>
-<p>$citation</p>
-
-<h3>BibTeX</h3>
-<pre><code>$bibtex</code></pre>
-
-<h3>Repository</h3>
-<p><em>$REPO_NAME</em><br>
-<a href="$REPO_URL">$REPO_URL</a><br>
-<strong>Last updated:</strong> $LAST_UPDATE</p>
-HTML
+          # Append both to index.html (no heredocs -> YAML-safe)
+          printf '%s\n' \
+            '' \
+            '<hr>' \
+            '<h2>Suggested Citation</h2>' \
+            "<p>$citation_written</p>" \
+            '' \
+            '<h3>BibTeX</h3>' \
+            '<pre><code>' \
+            "$bibtex" \
+            '</code></pre>' \
+            '' \
+            '<h3>Repository</h3>' \
+            "<p><em>$REPO_NAME</em><br>" \
+            "<a href=\"$REPO_URL\">$REPO_URL</a><br>" \
+            "<strong>Last updated:</strong> $LAST_UPDATE</p>" \
+            >> docs/index.html
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
@@ -120,5 +128,6 @@ HTML
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
 
 
