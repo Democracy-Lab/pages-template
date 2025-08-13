@@ -85,7 +85,7 @@ jobs:
           cat >> docs/index.html <<HTML
 
 <hr>
-<h2>Citation</h2>
+<h2>Suggested Citation</h2>
 <p>$citation.</p>
 
 <h3>Repository</h3>
