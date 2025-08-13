@@ -87,7 +87,7 @@ jobs:
             authors_bibtex="$authors_bibtex and $(echo "$names_sorted" | paste -sd ' and ' -)"
           fi
 
-          # BibTeX entry (keep newlines inside the variable)
+          # Build BibTeX as a shell variable (YAML-safe)
           bibtex="@misc{$REPO_NAME-$YEAR,
   author = {$authors_bibtex},
   title = {$REPO_NAME},
@@ -96,7 +96,7 @@ jobs:
   note = {Last updated: $LAST_UPDATE}
 }"
 
-          # Append both to index.html (no heredocs -> YAML-safe)
+          # Append both to index.html
           printf '%s\n' \
             '' \
             '<hr>' \
