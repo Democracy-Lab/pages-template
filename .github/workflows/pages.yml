@@ -109,7 +109,6 @@ jobs:
           .sidebar nav.toc li { margin:4px 0; }
           .sidebar nav.toc a { color:#24292f; text-decoration:none; }
           .sidebar nav.toc a:hover { text-decoration:underline; }
-          .sidebar .nav-label { margin-top: 1em; margin-bottom: .5em; font-size: 15px; color: #444; }
 
           /* TOC indentation rules */
           .sidebar nav.toc ul ul { padding-left:14px; border-left:2px solid #e5e7eb; margin-left:6px; }
@@ -156,7 +155,7 @@ jobs:
             mv "$TMP" index.html
           fi
 
-          # === Sidebar wrapper with Home + Navigation label + placeholder for TOC links ===
+          # === Sidebar wrapper with Home + placeholder for TOC links ===
           HOMELINK="https://democracy-lab.github.io/"
           if grep -qi '<div class="page"' index.html; then
             echo "Wrapper already present; skipping."
@@ -167,7 +166,6 @@ jobs:
                   sub(/<body[^>]*>/,
                       "&\n<div class=\"page\"><aside class=\"sidebar\">" \
                       "<a class=\"home\" href=\"" home "\" aria-label=\"Go to home\">← Home</a>" \
-                      "<h3 class=\"nav-label\">Navigation:</h3>" \
                       "<nav class=\"toc\"><!--SIDEBAR_LINKS--></nav>" \
                       "</aside>\n<main class=\"content\"><div class=\"container\">");
                   done=1
@@ -353,3 +351,5 @@ jobs:
         run: |
           echo "### Deployed Pages URL" >> "$GITHUB_STEP_SUMMARY"
           echo "${{ steps.deployment.outputs.page_url }}" >> "$GITHUB_STEP_SUMMARY"
+
+
